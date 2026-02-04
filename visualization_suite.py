@@ -3,6 +3,10 @@ Visualization Suite for MDS Analysis
 =====================================
 This script generates all visualizations for the MDS analysis of Czech political identity descriptions.
 
+IMPORTANT:
+- MDS is computed on LEMMATIZED texts (for better semantic matching)
+- Examples are displayed using ORIGINAL texts (for readability)
+
 Run in Google Colab or locally with: python visualization_suite.py
 """
 
