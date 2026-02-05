@@ -205,7 +205,7 @@ cat(rep("=", 60), "\n")
 
 # Remove very short lemmatized responses (likely gibberish or single words)
 data_final <- data_clean %>%
-  filter(nchar(trimws(ingroup_lemma)) >= 5 & nchar(trimws(outgroup_lemma)) >= 5)
+  filter(nchar(trimws(ingroup_lemma)) >= 10 & nchar(trimws(outgroup_lemma)) >= 10)
 
 cat("After minimum length filter:", nrow(data_final), "rows\n")
 cat("Removed:", nrow(data_clean) - nrow(data_final), "very short responses\n")
