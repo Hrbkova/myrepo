@@ -196,19 +196,22 @@ cat("\nAfter removing 'don't know':", nrow(data_clean), "rows\n")
 cat("Removed:", nrow(data_lemmatized) - nrow(data_clean), "rows\n")
 
 # =============================================================================
-# STEP 5: FINAL QUALITY FILTER
+# STEP 5: FINAL DATA (minimal filtering - method-specific filtering at analysis)
 # =============================================================================
 
 cat("\n", rep("=", 60), "\n")
-cat("STEP 5: Final quality filter\n")
+cat("STEP 5: Final data preparation\n")
 cat(rep("=", 60), "\n")
 
-# Remove very short lemmatized responses (likely gibberish or single words)
-data_final <- data_clean %>%
-  filter(nchar(trimws(ingroup_lemma)) >= 10 & nchar(trimws(outgroup_lemma)) >= 10)
+# Best practice: Don't aggressively filter short responses in preprocessing.
+# Each analysis method handles this appropriately:
+# - STM: prepDocuments(lower.thresh = 3) removes rare words
+# - Quanteda/keyness: dfm_trim(min_termfreq = 3) for rare words
+# - Sentence transformers: handles short text natively, no filtering needed
 
-cat("After minimum length filter:", nrow(data_final), "rows\n")
-cat("Removed:", nrow(data_clean) - nrow(data_final), "very short responses\n")
+data_final <- data_clean
+
+cat("Final sample size:", nrow(data_final), "rows\n")
 
 # =============================================================================
 # STEP 6: ADD DERIVED VARIABLES
@@ -320,8 +323,8 @@ cat("  Missing responses:     ", nrow(data_raw) - nrow(data_filtered),
     " (", round((nrow(data_raw) - nrow(data_filtered))/nrow(data_raw)*100, 1), "%)\n")
 cat("  'Don't know' responses:", length(exclude_either),
     " (", round(length(exclude_either)/nrow(data_filtered)*100, 1), "%)\n")
-cat("  Very short responses:  ", nrow(data_clean) - nrow(data_final),
-    " (", round((nrow(data_clean) - nrow(data_final))/nrow(data_clean)*100, 1), "%)\n")
+cat("\nNote: Short responses are NOT filtered here.\n")
+cat("      Each analysis method handles this appropriately.\n")
 
 cat("\nOUTPUT FILES:\n")
 cat("  1. czech_clean_lemmatized.csv - Use for:\n")
