@@ -259,21 +259,46 @@ cat("  Outgroup - Median:", median(data_final$outgroup_word_count),
     "Mean:", round(mean(data_final$outgroup_word_count), 1), "\n")
 
 # =============================================================================
-# STEP 7: SAVE OUTPUT
+# STEP 7: SAVE OUTPUT - TWO VERSIONS
 # =============================================================================
 
 cat("\n", rep("=", 60), "\n")
-cat("STEP 7: Saving output\n")
+cat("STEP 7: Saving output (two versions)\n")
 cat(rep("=", 60), "\n")
 
-# Main output file for all analyses
-output_path <- paste0(OUTPUT_DIR, "czech_clean_for_analysis.csv")
-write_csv(data_final, output_path)
-cat("Saved:", output_path, "\n")
+# VERSION 1: With lemmatization (for STM, keyness, DFM-MDS)
+output_lemma <- paste0(OUTPUT_DIR, "czech_clean_lemmatized.csv")
+write_csv(data_final, output_lemma)
+cat("Saved:", output_lemma, "\n")
+write_csv(data_final, "czech_clean_lemmatized.csv")
 
-# Also save to current directory
-write_csv(data_final, "czech_clean_for_analysis.csv")
-cat("Saved: czech_clean_for_analysis.csv (local copy)\n")
+# VERSION 2: Original text only (for sentence transformers, BERTopic)
+# Just clean the original text minimally - no lemmatization
+data_original <- data_final %>%
+  mutate(
+    # Clean original text (minimal - just whitespace and basic cleaning)
+    ingroup_clean = str_squish(open_ingroup),
+    outgroup_clean = str_squish(open_outgroup)
+  ) %>%
+  select(
+    respondent_id,
+    # Original text (cleaned)
+    ingroup_text = ingroup_clean,
+    outgroup_text = outgroup_clean,
+    # Keep lemmatized for reference
+    ingroup_lemma,
+    outgroup_lemma,
+    # Metadata
+    party_name, party_type, party_choice,
+    ingroup_word_count, outgroup_word_count,
+    # Keep all other columns
+    everything()
+  )
+
+output_original <- paste0(OUTPUT_DIR, "czech_clean_original.csv")
+write_csv(data_original, output_original)
+cat("Saved:", output_original, "\n")
+write_csv(data_original, "czech_clean_original.csv")
 
 # =============================================================================
 # SUMMARY
@@ -298,17 +323,21 @@ cat("  'Don't know' responses:", length(exclude_either),
 cat("  Very short responses:  ", nrow(data_clean) - nrow(data_final),
     " (", round((nrow(data_clean) - nrow(data_final))/nrow(data_clean)*100, 1), "%)\n")
 
-cat("\nOUTPUT COLUMNS:\n")
+cat("\nOUTPUT FILES:\n")
+cat("  1. czech_clean_lemmatized.csv - Use for:\n")
+cat("     - Keyness analysis (R)\n")
+cat("     - STM topic modeling (R)\n")
+cat("     - DFM + MDS bag-of-words (R/Python)\n")
+cat("\n")
+cat("  2. czech_clean_original.csv - Use for:\n")
+cat("     - Sentence Transformer + MDS (Python)\n")
+cat("     - BERTopic (Python)\n")
+cat("     - Any neural language model analysis\n")
+cat("\n")
+cat("KEY COLUMNS:\n")
 cat("  - respondent_id: unique identifier\n")
-cat("  - open_ingroup, open_outgroup: original text\n")
-cat("  - ingroup_lemma, outgroup_lemma: lemmatized text (use for analysis)\n")
+cat("  - ingroup_text, outgroup_text: original text (cleaned)\n")
+cat("  - ingroup_lemma, outgroup_lemma: lemmatized text\n")
 cat("  - party_name, party_type: political variables\n")
-cat("  - ingroup_word_count, outgroup_word_count: text length\n")
-
-cat("\nREADY FOR:\n")
-cat("  ✓ Keyness analysis (R)\n")
-cat("  ✓ STM topic modeling (R)\n")
-cat("  ✓ MDS with sentence transformers (Python)\n")
-cat("  ✓ BERTopic (Python)\n")
 
 cat("\n", rep("=", 60), "\n")
