@@ -38,7 +38,7 @@ udmodel_czech <- udpipe_load_model(UDPIPE_MODEL_PATH)
 # Key improvement: Preserves negation (nevím → nevědět, NOT vědět)
 
 lemmatize_czech_improved <- function(texts, udmodel, doc_ids = NULL,
-                                      pos_keep = c("NOUN", "ADJ", "VERB"),
+                                      pos_keep = c("NOUN", "ADJ", "VERB", "AUX"),
                                       min_nchar = 3) {
 
   if (is.null(doc_ids)) doc_ids <- paste0("doc_", seq_along(texts))
@@ -77,10 +77,14 @@ lemmatize_czech_improved <- function(texts, udmodel, doc_ids = NULL,
     drop_na(final_tok)
 
   # Rebuild text per document
-  result <- ann_keep %>%
+  lemma_result <- ann_keep %>%
     group_by(doc_id) %>%
-    summarise(lemmatized_text = paste(final_tok, collapse = " "), .groups = "drop") %>%
-    right_join(tibble(doc_id = doc_ids), by = "doc_id") %>%
+    summarise(lemmatized_text = paste(final_tok, collapse = " "), .groups = "drop")
+
+  # FIX: Preserve document order using left_join from skeleton
+  skeleton <- tibble(doc_id = doc_ids)
+  result <- skeleton %>%
+    left_join(lemma_result, by = "doc_id") %>%
     mutate(lemmatized_text = coalesce(lemmatized_text, ""))
 
   return(result)
@@ -111,8 +115,9 @@ cat(rep("=", 60), "\n")
 # NOTE: respondent_id = row_number() is based on post-filter ordering.
 # The manual exclude lists (Step 4) were built using this same filtering.
 # If you rebuild exclude lists from different data, IDs may misalign!
-# Consider using ResponseId column if available and stable.
+# FIX: Keep raw_rowid as stable anchor for debugging/rebuilding exclude lists
 data_filtered <- data_raw %>%
+  mutate(raw_rowid = row_number()) %>%
   filter(!is.na(open_ingroup) & !is.na(open_outgroup) &
            nchar(trimws(open_ingroup)) > 0 &
            nchar(trimws(open_outgroup)) > 0) %>%
@@ -203,6 +208,18 @@ data_clean <- data_lemmatized %>%
 cat("\nAfter removing 'don't know':", nrow(data_clean), "rows\n")
 cat("Removed:", nrow(data_lemmatized) - nrow(data_clean), "rows\n")
 
+# FIX: Drop docs that became empty after lemmatization
+n_before_empty <- nrow(data_clean)
+data_clean <- data_clean %>%
+  mutate(
+    ingroup_lemma = str_squish(ingroup_lemma),
+    outgroup_lemma = str_squish(outgroup_lemma)
+  ) %>%
+  filter(ingroup_lemma != "" & outgroup_lemma != "")
+
+cat("After removing empty lemmas:", nrow(data_clean), "rows\n")
+cat("Removed:", n_before_empty - nrow(data_clean), "rows with empty lemmatized text\n")
+
 # =============================================================================
 # STEP 5: FINAL DATA (minimal filtering - method-specific filtering at analysis)
 # =============================================================================
@@ -251,20 +268,19 @@ data_final <- data_final %>%
       party_name %in% c("ODS", "STAN", "TOP 09", "KDU-ČSL") ~ "Government",
       party_name %in% c("ANO", "SPD") ~ "Opposition",
       TRUE ~ "Other"
-    ),
+    )
   )
 
-# FIX: Safe word count function (handles empty strings and NA)
+# FIX: Safe word count function (vectorized, handles empty strings and NA)
 count_words <- function(x) {
-  if (is.na(x) || trimws(x) == "") return(0L)
-  length(strsplit(trimws(x), "\\s+")[[1]])
+  ifelse(is.na(x) | str_squish(x) == "", 0L, str_count(str_squish(x), "\\S+"))
 }
 
-# Add word counts using safe function
+# Add word counts using vectorized function
 data_final <- data_final %>%
   mutate(
-    ingroup_word_count = vapply(ingroup_lemma, count_words, integer(1)),
-    outgroup_word_count = vapply(outgroup_lemma, count_words, integer(1))
+    ingroup_word_count = count_words(ingroup_lemma),
+    outgroup_word_count = count_words(outgroup_lemma)
   )
 
 cat("Party distribution:\n")
