@@ -66,6 +66,10 @@ lemmatize_czech_improved <- function(texts, udmodel, doc_ids = NULL,
   is_verb_neg <- ann$upos == "VERB" & is_neg
   ann$lemma_work[is_verb_neg] <- paste0("ne", ann$lemma[is_verb_neg])
 
+  # FIX: Include AUX for negation (nevím can be tagged as AUX in some contexts)
+  is_aux_neg <- ann$upos == "AUX" & is_neg
+  ann$lemma_work[is_aux_neg] <- paste0("ne", ann$lemma[is_aux_neg])
+
   # Filter: keep specified POS, drop very short tokens
   ann_keep <- ann %>%
     filter(upos %in% pos_keep) %>%
@@ -104,6 +108,10 @@ cat("STEP 2: Initial filtering\n")
 cat(rep("=", 60), "\n")
 
 # Keep only rows with both ingroup and outgroup responses
+# NOTE: respondent_id = row_number() is based on post-filter ordering.
+# The manual exclude lists (Step 4) were built using this same filtering.
+# If you rebuild exclude lists from different data, IDs may misalign!
+# Consider using ResponseId column if available and stable.
 data_filtered <- data_raw %>%
   filter(!is.na(open_ingroup) & !is.na(open_outgroup) &
            nchar(trimws(open_ingroup)) > 0 &
@@ -244,9 +252,19 @@ data_final <- data_final %>%
       party_name %in% c("ANO", "SPD") ~ "Opposition",
       TRUE ~ "Other"
     ),
-    # Word counts
-    ingroup_word_count = sapply(strsplit(ingroup_lemma, "\\s+"), length),
-    outgroup_word_count = sapply(strsplit(outgroup_lemma, "\\s+"), length)
+  )
+
+# FIX: Safe word count function (handles empty strings and NA)
+count_words <- function(x) {
+  if (is.na(x) || trimws(x) == "") return(0L)
+  length(strsplit(trimws(x), "\\s+")[[1]])
+}
+
+# Add word counts using safe function
+data_final <- data_final %>%
+  mutate(
+    ingroup_word_count = vapply(ingroup_lemma, count_words, integer(1)),
+    outgroup_word_count = vapply(outgroup_lemma, count_words, integer(1))
   )
 
 cat("Party distribution:\n")
@@ -273,7 +291,6 @@ cat(rep("=", 60), "\n")
 output_lemma <- paste0(OUTPUT_DIR, "czech_clean_lemmatized.csv")
 write_csv(data_final, output_lemma)
 cat("Saved:", output_lemma, "\n")
-write_csv(data_final, "czech_clean_lemmatized.csv")
 
 # VERSION 2: Original text only (for sentence transformers, BERTopic)
 # Just clean the original text minimally - no lemmatization
@@ -301,7 +318,6 @@ data_original <- data_final %>%
 output_original <- paste0(OUTPUT_DIR, "czech_clean_original.csv")
 write_csv(data_original, output_original)
 cat("Saved:", output_original, "\n")
-write_csv(data_original, "czech_clean_original.csv")
 
 # =============================================================================
 # SUMMARY
